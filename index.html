@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🔥 Swastik AI Ultra Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui;
+      background: #0f172a;
+      color: white;
+    }
+
+    #chat {
+      height: 90vh;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .msg {
+      padding: 12px;
+      margin: 8px;
+      border-radius: 14px;
+      max-width: 80%;
+      line-height: 1.4;
+    }
+
+    .user { background:#22c55e; margin-left:auto; }
+    .ai { background:#1e293b; }
+
+    #controls {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      display: flex;
+      padding: 10px;
+      background: #020617;
+    }
+
+    input {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+    }
+
+    button {
+      margin-left: 5px;
+      padding: 10px;
+      border-radius: 12px;
+      border: none;
+      background: #22c55e;
+      color: white;
+      font-size: 16px;
+    }
+
+    #imgInput { display:none; }
+    img { max-width:100%; border-radius:10px; margin-top:5px; }
+  </style>
+</head>
+
+<body>
+
+<div id="chat"></div>
+
+<div id="controls">
+  <button onclick="openFile()">➕</button>
+  <input id="msg" placeholder="Ask anything...">
+  <button onclick="voice()">🎤</button>
+  <button onclick="sendMsg()">➤</button>
+  <input type="file" id="imgInput" accept="image/*">
+</div>
+
+<script>
+
+const API_KEY = "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"
+
+// ✅ MEMORY
+let chatHistory = [];
+
+const SYSTEM_PROMPT = `
+You are Swastik AI Ultra Pro.
+
+Rules:
+- Always speak politely and professionally
+- Give clear, correct and short answers
+- Do NOT use slang, jokes, or funny tone
+- Answer like a smart assistant (ChatGPT/Gemini style)
+- Solve maths directly and correctly
+- Use simple Hindi or English based on user
+- If asked "who made you" → say Swastik Pandey created you
+- If asked about Swastik Pandey → say he is a talented and creative developer
+`;
+
+const chat = document.getElementById("chat");
+const msgInput = document.getElementById("msg");
+
+function openFile(){
+  document.getElementById("imgInput").click();
+}
+
+function add(text,type,img=null){
+  let div=document.createElement("div");
+  div.className="msg "+type;
+  div.innerText=text;
+
+  if(img){
+    let image=document.createElement("img");
+    image.src=img;
+    div.appendChild(image);
+  }
+
+  chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+}
+
+// 🎤 mic
+function voice(){
+  let rec=new(window.SpeechRecognition||window.webkitSpeechRecognition)();
+  rec.onresult=(e)=>{
+    msgInput.value=e.results[0][0].transcript;
+    sendMsg();
+  };
+  rec.start();
+}
+
+// 🔥 MATH SOLVER
+function solveMath(q){
+  try{
+    return eval(q);
+  }catch{
+    return null;
+  }
+}
+
+async function sendMsg(){
+  let text=msgInput.value.trim();
+  let file=document.getElementById("imgInput").files[0];
+
+  if(!text && !file) return;
+
+  let imgURL=null;
+
+  if(file){
+    imgURL=URL.createObjectURL(file);
+    add("You:", "user", imgURL);
+  } else {
+    add(text,"user");
+  }
+
+  msgInput.value="";
+  document.getElementById("imgInput").value="";
+
+  let lower = text.toLowerCase();
+
+  // ✅ FORCE ANSWERS
+  if(lower.includes("kisne banaya") || lower.includes("who made you")){
+    add("Mujhe Swastik Pandey ne 5 April ko banaya hai.","ai");
+    return;
+  }
+
+  if(lower.includes("swastik pandey")){
+    add("Swastik Pandey ek talented aur creative developer hai.","ai");
+    return;
+  }
+
+  // ✅ AUTO MATH
+  let math = solveMath(text);
+  if(math !== null){
+    add("Answer: " + math,"ai");
+    return;
+  }
+
+  chatHistory.push({role:"user", content:text});
+
+  add("Thinking...","ai");
+
+  try{
+    let res=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+      method:"POST",
+      headers:{
+        "Authorization":"Bearer "+API_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        model:"meta-llama/llama-3-8b-instruct",
+        temperature: 0.3,
+        messages:[
+          {role:"system",content:SYSTEM_PROMPT},
+          ...chatHistory
+        ]
+      })
+    });
+
+    let data=await res.json();
+    chat.lastChild.remove();
+
+    if(data.error){
+      add("Error: "+data.error.message,"ai");
+      return;
+    }
+
+    let reply=data.choices[0].message.content;
+
+    add(reply,"ai");
+
+    chatHistory.push({role:"assistant", content:reply});
+
+  }catch{
+    add("Network error","ai");
+  }
+}
+
+</script>
+
+</body>
+</html>
